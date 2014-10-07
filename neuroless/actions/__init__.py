@@ -1,5 +1,7 @@
 from unification import unify, resample
 from skullstripping import stripskull
 from biasfieldcorrection import correctbiasfields
-from intensityrangestandardisation import percentilemodelstandardisation
+from intensityrangestandardisation import percentilemodelstandardisation, percentilemodelapplication
 from features import extractfeatures, sample
+from training import trainet
+from application import applyforest

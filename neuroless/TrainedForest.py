@@ -21,12 +21,13 @@
 # build-in module
 import os
 import pickle
-from neuroless import ImageSet
-from neuroless.exceptions import ConsistencyError
 
 # third-party modules
 
 # own modules
+from neuroless.exceptions import ConsistencyError
+from neuroless.shell import mkdircond
+from neuroless import FileSet
 
 # constants
 
@@ -40,20 +41,23 @@ class TrainedForest (object):
     FILENAME_FOREST = 'forest.pkl'
     FILENAME_INTSTDMODEL_BASESTRING = 'intstdmodel_{}.pkl'
     
-    def __init__(self, directory, sequences):
+    def __init__(self, directory, sequences, disable_check_empty = False):
         """
         Create a new instance, ready to be filled with all necessary values at ``dir``.
         
         Parameters
         ----------
         directory : string
-            Empty and existing directory in which to base this instance.
+            Empty directory in which to base this instance. Created if not existent.
         sequences : sequence of strings
             The MRI instances this forest was trained with.
+        disable_check_empty : bool
+            For internal usage only.
         """
-        # check directory for existence
-        if not os.path.isdir(directory):
-            raise ValueError('The directory "{}" does not exist.'.format(directory))
+        mkdircond(directory)
+        
+        if not disable_check_empty and os.listdir(directory):
+            raise ValueError('The directory "{}" is not empty.'.format(directory))
         
         self.__directory = directory
         self.__sequences = list(sequences)
@@ -79,14 +83,14 @@ class TrainedForest (object):
         # parse the config file
         cnffile = os.path.join(directory, TrainedForest.FILENAME_CONFIG)
         sequences, skullstripsequence, samplingparameters, forestparameters, \
-               basesequence, workingresolution, trainingimages = TrainedForest.__parse_config(cnffile)
+               fixedsequence, workingresolution, trainingimages = TrainedForest.__parse_config(cnffile)
         # create new instance
-        tfi = TrainedForest(directory, sequences)
+        tfi = TrainedForest(directory, sequences, True)
         # set the configuration parameters
         tfi.skullstripsequence = skullstripsequence
         tfi.samplingparameters = samplingparameters
         tfi.forestparameters = forestparameters
-        tfi.basesequence = basesequence
+        tfi.fixedsequence = fixedsequence
         tfi.workingresolution = workingresolution
         tfi.__trainingimages = trainingimages
         # validate
@@ -133,12 +137,10 @@ class TrainedForest (object):
     @trainingimages.setter
     def trainingimages(self, i):
         # check if i is ImageSet instance
-        if not isinstance(i, ImageSet):
-            raise ValueError('The passed training images must be contained in an ImageSet object.')
-        # check if is valid
-        i.validate()   
+        if not isinstance(i, FileSet):
+            raise ValueError('The passed training images must be contained in an FileSet object.')
         # then convert to internal format
-        self.__trainingimages = [f for f in i.iterfiles(self.sequences)]
+        self.__trainingimages = list(i.getfiles())
         
     def validate(self):
         """
@@ -149,8 +151,8 @@ class TrainedForest (object):
             raise ConsistencyError('"samplingparameters" not set.')
         if not hasattr(self, 'forestparameters'):
             raise ConsistencyError('"forestparameters" not set.')
-        if not hasattr(self, 'basesequence'):
-            raise ConsistencyError('"basesequence" not set.')
+        if not hasattr(self, 'fixedsequence'):
+            raise ConsistencyError('"fixedsequence" not set.')
         if not hasattr(self, 'workingresolution'):
             raise ConsistencyError('"workingresolution" not set.')
         if not hasattr(self, 'skullstripsequence'):
@@ -171,7 +173,7 @@ class TrainedForest (object):
         # call validate
         self.validate()
         # save the config (if not already there)
-        self.__persist_config() #!TODO: write this method!
+        self.__persist_config()
         
     def prettyinfo(self):
         """
@@ -183,9 +185,9 @@ class TrainedForest (object):
         Representation of a trained forest instance located under "{directory}"
         #######################################################################
         Sequences covered: {sequences}
-        Base-sequence, to which all others are registered: {basesequence}
+        Fixed sequence, to which all others are registered: {fixedsequence}
         Resolution, to which the base-sequence is re-sampled beforehand: {workingresolution}
-        Sequence used to the skull-stripping: {skullstripsequence}
+        Sequence used for the skull-stripping: {skullstripsequence}
         
         Sampling parameters employed:
         {samplingparameters}
@@ -203,16 +205,27 @@ class TrainedForest (object):
         
         return base.format(directory = self.directory,
                            sequences = self.sequences,
-                           basesequence = self.basesequence,
+                           fixedsequence = self.fixedsequence,
                            workingresolution = self.workingresolution,
                            skullstripsequence = self.skullstripsequence,
                            samplingparameters = self.samplingparameters,
                            forestparameters = self.forestparameters,
                            configfile = self.__configfile,
-                           forestfile = self.forestfile,
+                           forestfile = self.__forestfile,
                            modelfiles = [self.__getintensitystdmodelfile(s) for s in self.sequences],
-                           trainingimages = ['\n'.join(self.trainingimages)])
+                           trainingimages = '\n'.join(self.trainingimages))
         
+        
+    def getintensitymodels(self):
+        r"""
+        Get all intensity models as FileSet instance.
+        
+        Returns
+        -------
+        models : FileSet
+            A FileSet instance containing all model files.
+        """
+        return FileSet(self.directory, False, self.sequences, [os.path.basename(self.__getintensitystdmodelfile(s)) for s in self.sequences], 'identifiers', False)
         
     def getintensitystdmodel(self, sequence):
         """
@@ -263,7 +276,7 @@ class TrainedForest (object):
         """
         if not sequence in self.sequences:
             raise ValueError('Sequence "{}" unknown, must be one of "{}".'.format(sequence, self.sequences))
-        return os.path.join(self.directory, TrainedForestInstance.FILENAME_INTSTDMODEL_BASESTRING.format(sequence))            
+        return os.path.join(self.directory, TrainedForest.FILENAME_INTSTDMODEL_BASESTRING.format(sequence))            
 
     def __persist_config(self):
         """
@@ -276,7 +289,7 @@ class TrainedForest (object):
             pickle.dump(self.skullstripsequence, f)
             pickle.dump(self.samplingparameters, f)
             pickle.dump(self.forestparameters, f)
-            pickle.dump(self.basesequence, f)
+            pickle.dump(self.fixedsequence, f)
             pickle.dump(self.workingresolution, f)
             if not hasattr(self, 'trainingimages'):
                 self.trainingimages = []
@@ -294,8 +307,8 @@ class TrainedForest (object):
             skullstripsequence = pickle.load(f)
             samplingparameters = pickle.load(f)
             forestparameters = pickle.load(f)
-            basesequence = pickle.load(f)
+            fixedsequence = pickle.load(f)
             workingresolution = pickle.load(f)
             trainingimages = pickle.load(f)
         return sequences, skullstripsequence, samplingparameters, forestparameters, \
-               basesequence, workingresolution, trainingimages
+               fixedsequence, workingresolution, trainingimages

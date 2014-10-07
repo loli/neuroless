@@ -12,6 +12,9 @@ class ConsistencyError(NeurolessException):
 
 class InvalidConfigurationError(NeurolessException):
     """Raises when an invalid configuration occured in an object."""
+    
+class TaskExecutionError(NeurolessException):
+    """Raises when The execution of a task failed."""
 
 ########################################
 
@@ -28,7 +31,6 @@ class UnsupportedCombinationError(FileSetExecption):
 class FileSystemOperationError(NeurolessException):
     """Raised when a file-system level operation failed."""
     pass
-
 
 ########################################
 

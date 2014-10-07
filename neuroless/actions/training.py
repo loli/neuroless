@@ -21,6 +21,9 @@
 # build-in module
 
 # third-party modules
+from sklearn.ensemble.forest import ExtraTreesClassifier
+import numpy
+import multiprocessing
 
 # own modules
 
@@ -31,6 +34,10 @@ def trainet(trainingset, **kwargs):
     r"""
     Train an ExtraTree decision forest.
     
+    Note
+    ----
+    This function does not use a ``TaskMachine``.
+    
     Parameters
     ----------
     trainingset : FileSet
@@ -40,60 +47,23 @@ def trainet(trainingset, **kwargs):
         
     Returns
     -------
-    forest : FileSet
-        A trained forest instance.    
+    forest : ExtraTreesClassifier
+        A trained forest instance.
     """
-    logger = Logger.getInstance()
+    trainingfeaturesfile = trainingset.getfile(identifier='features')
+    trainingclassesfile = trainingset.getfile(identifier='classes')
     
-    # decide on strip-sequence
-    if not stripsequence:
-        for sequence in SEQUENCE_PREFERENCES:
-            if sequence in inset.identifiers:
-                stripsequence = sequence
-        if not stripsequence:
-            stripsequence = inset.identifiers[0]
-            logger.warning('None of the preferred sequences for skull-stripping "{}" available. Falling back to "{}"'.format(SEQUENCE_PREFERENCES, stripsequence))
-    elif not stripsequence in inset.identifiers:
-        raise ValueError('The chosen skull-strip sequence "{}" is not available in the input image set.'.format(stripsequence))
+    # loading training features
+    with open(trainingfeaturesfile, 'r') as f:
+        training_feature_vector = numpy.load(f)
+    if 1 == training_feature_vector.ndim:
+        training_feature_vector = numpy.expand_dims(training_feature_vector, -1)
+    with open(trainingclassesfile , 'r') as f:
+        training_class_vector = numpy.load(f)
 
-    # prepare the task machine
-    tm = TaskMachine()
-        
-    # prepare output
-    resultset = FileSet(directory, inset.cases, False, ['{}.{}'.format(cid, PREFERRED_FILE_SUFFIX) for cid in inset.cases], 'cases', False)
-
-    # prepare and register skull-stripping tasks
-    for case in inset.cases:
-        src = inset.getfile(case=case, identifier=stripsequence)
-        dest = resultset.getfile(case=case)
-        rfile = dest.replace('.{}'.format(PREFERRED_FILE_SUFFIX),  '_mask.{}'.format(PREFERRED_FILE_SUFFIX)) 
-        tm.register([src], [dest], brainmask, [src, dest, rfile], dict(), 'skull-strip')
-        
-    # run
-    tm.run()        
+    # prepare and train the decision forest
+    forest = ExtraTreesClassifier(n_jobs=multiprocessing.cpu_count(), random_state=None, **kwargs)
+    forest.fit(training_feature_vector, training_class_vector)    
             
-    return resultset
-        
-def brainmask(src, dest, resultfile):
-    """
-    Computes a brain mask.
-    
-    Parameters
-    ----------
-    src : string
-        Path to the image on which to compute the brain mask.
-    dest : string
-        Target location for the brain mask.
-    resultfile : string
-        The actual result file created by the external call.
-    """
-    # prepare and run skull-stripping command
-    cmd = ['fsl5.0-bet', src, dest, '-n', '-m', '-R']
-    rtcode, stdout, stderr = call(cmd)
-    
-    # check if successful
-    if not os.path.isfile(resultfile):
-            raise CommandExecutionError(cmd, rtcode, stdout, stderr, 'Brain mask image not created.')
-        
-    # copy
-    mv(resultfile, dest)
+    return forest
+

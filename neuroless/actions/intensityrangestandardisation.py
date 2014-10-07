@@ -33,6 +33,52 @@ from neuroless import TaskMachine, FileSet
 # constants
 
 # code
+def percentilemodelapplication(directory, inset, brainmasks, models):
+    r"""
+    Apply intensity standardisation models for each sequence.
+    
+    Parameters
+    ----------
+    directory : string
+        Where to place the results.
+    inset : FileSet
+        The input file set.
+    brainmasks : FileSet
+        The associated brain masks file set.
+    models : FileSet
+        The IntensityRangeStandardization model files for each sequence. 
+        
+    Returns
+    -------
+    resultset : FileSet
+        A FileSet centered on ``directory`` and containing the intensity standarised
+        images.
+    """
+    # prepare the task machine
+    tm = TaskMachine()
+    
+    # prepare output
+    resultset = FileSet.fromfileset(directory, inset)
+
+    # register model training & model application tasks
+    for sequence in inset.identifiers:
+        modelfile = models.getfile(identifier=sequence)
+        for case in inset.cases:
+            imagefile = inset.getfile(identifier=sequence, case=case)
+            brainmaskfile = brainmasks.getfile(case=case)
+            destfile = resultset.getfile(identifier=sequence, case=case)
+            tm.register([imagefile, brainmaskfile, modelfile],
+                        [destfile],
+                        percentileintensityapplication,
+                        [imagefile, brainmaskfile, destfile, modelfile],
+                        dict(),
+                        'intensity-standardisation')
+
+    # run
+    tm.run()
+    
+    return resultset    
+
 def percentilemodelstandardisation(directory, inset, brainmasks):
     r"""
     Train and apply intensity standardisation models for each sequence.
@@ -69,7 +115,8 @@ def percentilemodelstandardisation(directory, inset, brainmasks):
         brainmaskfiles = brainmasks.getfiles()
         destfiles = resultset.getfiles(identifier=sequence)
         destmodel = models.getfile(identifier=sequence)
-        tm.register(trainingfiles + brainmaskfiles, [destmodel] + destfiles,
+        tm.register(trainingfiles + brainmaskfiles,
+                    [destmodel] + destfiles,
                     percentileintensitystd,
                     [trainingfiles, brainmaskfiles, destfiles, destmodel],
                     dict(),
@@ -79,6 +126,42 @@ def percentilemodelstandardisation(directory, inset, brainmasks):
     tm.run()
     
     return resultset, models
+        
+def percentileintensityapplication(imagefile, brainmaskfile, destfile, modelfile):
+    """
+    Apply an intensity range standardisation model to an image.
+    
+    Parameters
+    ----------
+    imagefile : string
+        Image to apply the model to.
+    brainmaskfile : string
+        The brain mask corresponding to ``imagefile``.
+    destfile : string
+        The intensity standarised target location corresponding to ``imagefile``.
+    modelfile : string
+        The location of the model to apply.
+    """
+    # loading image
+    image, header = load(imagefile)
+        
+    # loading brainmask
+    mask = load(brainmaskfile)[0].astype(numpy.bool)
+    
+    # load model
+    with open(modelfile, 'rb') as f:
+        model = pickle.load(f)
+        
+    # apply model
+    transformed_image = model.transform(image[mask])
+    
+    # modify original image
+    image[~mask] = 0
+    image[mask] = transformed_image
+    
+    # save to destination
+    save(image, destfile, header)
+    
         
 def percentileintensitystd(trainingfiles, brainmaskfiles, destfiles, destmodel):
     """

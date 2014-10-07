@@ -18,3 +18,4 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 from .FileSet import FileSet
 from .TaskMachine import TaskMachine
+from .TrainedForest import TrainedForest

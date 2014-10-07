@@ -35,9 +35,14 @@ from neuroless.exceptions import InvalidConfigurationError
 
 # constants (see end of file for more constants)
 FEATURE_DTYPE = numpy.float32
+"""The dtype the feature values should take."""
+SAMPLEPOINT_FG_VALUE = 1
+"""The value to denote FG samples in the sample point image."""
+SAMPLEPOINT_BG_VALUE = 2
+"""The value to denote FG samples in the sample point image."""
 
 # code
-def extractfeatures(directory, inset, brainmasks, groundtruth):
+def extractfeatures(directory, inset, brainmasks, groundtruth = False):
     r"""
     Extract features from the images.
     
@@ -49,14 +54,14 @@ def extractfeatures(directory, inset, brainmasks, groundtruth):
         The input file set.
     brainmasks : FileSet
         The associated brain masks file set.
-    groundtruthset : FileSet
+    groundtruth : FileSet or False
         The associated ground-truth file set.
         
     Returns
     -------
     resultset : FileSet
         A FileSet centered on ``directory`` and containing the extracted feature files.
-    classes : FileSet
+    classes : FileSet or False
         A FileSet centered on ``directory`` and containing the class memberships.
     fnames : FileSet
         A FileSet centered on ``directory`` and containing the feature names.
@@ -65,30 +70,41 @@ def extractfeatures(directory, inset, brainmasks, groundtruth):
     tm = TaskMachine()
     
     # prepare output
-    resultset = FileSet(directory, inset.cases, inset.identifiers, ['{}.npy'.format(fn) for fn in inset.filenames.values()], 'identifiers', True)
-    classes = FileSet(directory, inset.cases, False, ['{}.classmembership.npy'.format(cid) for cid in inset.cases], 'cases', False)
+    resultset = FileSet(directory, inset.cases, inset.identifiers, ['{}.npy'.format(fn) for fn in inset.filenames], 'identifiers', True)
     fnames = FileSet(directory, inset.cases, False, ['{}.featurenames.pkl'.format(cid) for cid in inset.cases], 'cases', False)
+    if groundtruth:
+        classes = FileSet(directory, inset.cases, False, ['{}.classmembership.npy'.format(cid) for cid in inset.cases], 'cases', False)
+    else:
+        classes = False
+    
         
     # register feature extraction tasks
     for case in inset.cases:
         brainmaskfile = brainmasks.getfile(case=case)
-        groundtruthfile = groundtruth.getfile(case=case)
-        cmdestfile = classes.getfile(case=case)
         fndestfile = fnames.getfile(case=case)
-            
-        tm.register(inset.getfiles(case=case) + [brainmaskfile, groundtruthfile],
-                    resultset.getfiles(case=case) +[cmdestfile, fndestfile],
-                    extract,
-                    [inset.getfiles(case=case), resultset.getfiles(case=case), brainmaskfile, groundtruthfile, cmdestfile, fndestfile],
-                    dict(),
-                    'feature-extraction')
+        if groundtruth:
+            groundtruthfile = groundtruth.getfile(case=case)
+            cmdestfile = classes.getfile(case=case)
+            tm.register(inset.getfiles(case=case) + [brainmaskfile, groundtruthfile],
+                        resultset.getfiles(case=case) + [cmdestfile, fndestfile],
+                        extract,
+                        [inset.getfiles(case=case), resultset.getfiles(case=case), brainmaskfile, fndestfile, groundtruthfile, cmdestfile],
+                        dict(),
+                        'feature-extraction')
+        else:
+            tm.register(inset.getfiles(case=case) + [brainmaskfile],
+                        resultset.getfiles(case=case) + [fndestfile],
+                        extract,
+                        [inset.getfiles(case=case), resultset.getfiles(case=case), brainmaskfile, fndestfile],
+                        dict(),
+                        'feature-extraction')            
         
     # run
     tm.run()
         
     return resultset, classes, fnames
         
-def extract(imagefiles, destfiles, brainmaskfile, groundtruthfile, cmdestfile, fndestfile):
+def extract(imagefiles, destfiles, brainmaskfile, fndestfile, groundtruthfile = False, cmdestfile = False):
     """
     Extract all features from the supplied image.
     
@@ -100,16 +116,17 @@ def extract(imagefiles, destfiles, brainmaskfile, groundtruthfile, cmdestfile, f
         The file in which to save the extracted features per images.
     brainmaskfile : string
         The corresponding brain mask.
+    fndestfile : string
+        The destination file for the feature names.        
     groundtruthfile : string
         The corresponding ground-truth file.
     cmdestfile : string
         The destination file for the class memberships.
-    fndestfile : string
-        The deatination file for the feature names.
     """
+
     # loading the support images
     msk = load(brainmaskfile)[0].astype(numpy.bool)
-    gt = load(groundtruthfile)[0].astype(numpy.bool)
+    if groundtruthfile: gt = load(groundtruthfile)[0].astype(numpy.bool)
     
     # for each pair of image and destination files
     for imagefile, destfile in zip(imagefiles, destfiles):
@@ -152,10 +169,11 @@ def extract(imagefiles, destfiles, brainmaskfile, groundtruthfile, cmdestfile, f
         pickle.dump(feature_names, f)
         
     # save the class memberships (truncated by the brain mask)
-    with open(cmdestfile, 'wb') as f:
-        pickle.dump(gt[msk], f)
+    if groundtruthfile:
+        with open(cmdestfile, 'wb') as f:
+            pickle.dump(gt[msk], f)
 
-def sample(directory, features, classes, brainmasks, sampler = stratifiedrandomsampling, **kwargs):
+def sample(directory, features, classes, brainmasks, sampler, **kwargs):
     r"""
     Sample training set from the features.
     
@@ -189,33 +207,39 @@ def sample(directory, features, classes, brainmasks, sampler = stratifiedrandoms
     samplepointset = FileSet(directory, features.cases, False, ['{}_samplepoints.nii.gz'.format(cid) for cid in features.cases], 'cases', False)
                 
     # register feature sampling task
-    featureclasstriples = []
+    samplerfunction = SAMPLERS[sampler]
+    featureclassquadrupel = []
     for case in features.cases:
         featurefiles = features.getfiles(case=case)
         classfile = classes.getfile(case=case)
-        samplepointfile = samplepointset.getfile(case=case)
         brainmaskfile = brainmasks.getfile(case=case)
-        featureclasstriples.append((featurefiles, classfile, samplepointfile))
+        samplepointfile = samplepointset.getfile(case=case)
+        featureclassquadrupel.append((featurefiles, classfile, brainmaskfile, samplepointfile))
     trainingsetfile = resultset.getfile(identifier='features')
     classfile = resultset.getfile(identifier='classes')
     tm.register(features.getfiles() + classes.getfiles() + [brainmaskfile],
-                [trainingsetfile, classfile] + samplepointfile.getfiles(),
-                stratifiedrandomsampling,
-                [featureclasstriples, trainingsetfile, classfile, brainmaskfile], kwargs, 'sample-trainingset')
+                [trainingsetfile, classfile] + samplepointset.getfiles(),
+                samplerfunction,
+                [featureclassquadrupel, trainingsetfile, classfile], kwargs, 'sample-trainingset')
+    
+    # run
+    tm.run()
+    
+    return resultset, samplepointset
 
         
-def stratifiedrandomsampling(featureclasstriples, trainingsetfile, classfile, brainmaskfile, nsamples = 500000, min_no_of_samples_per_class_and_case = 20):
+def stratifiedrandomsampling(featureclassquadrupel, trainingsetfile, classsetfile, nsamples = 500000, min_no_of_samples_per_class_and_case = 20):
     """
     Extract a training sample set from the supplied feature sets using stratified random sampling.
     
     Parameters
     ----------
-    featureclasstriples : list of tuples
+    featureclassquadrupel : list of tuples
         Triples containing (a) a list of a cases feature files, (b) the corresponding
-        class membership file and (c) the sample point file.
+        class membership file, (c) the brain mask file and (d) the sample point file.
     trainingsetfile : string
         The target training set file.
-    classfile : string
+    classsetfile : string
         The target class membership file.
     brainmaskfile : string
         The brain mask file.
@@ -230,27 +254,26 @@ def stratifiedrandomsampling(featureclasstriples, trainingsetfile, classfile, br
     logger = Logger.getInstance()
     
     # determine amount of samples to draw from each case
-    ncases = len(featureclasstriples)
+    ncases = len(featureclassquadrupel)
     nsamplescase = int(nsamples / ncases)
-    nsampleslastcase = nsamplescase + nsamples % ncases # + a little
-    logger.debug('drawing {} samples from {} cases each (total {} samples) (last case {} samples)'.format(nsamplescase, ncases, nsamples))
+    logger.debug('drawing {} samples from {} cases each (total {} samples)'.format(nsamplescase, ncases, nsamples))
     
     # initialize collectors
     fg_samples = []
     bg_samples = []
     
-    for cid, (featurefiles, classfile, featurepointfile) in enumerate(featureclasstriples):
+    for cid, (featurefiles, classfile, brainmaskfile, featurepointfile) in enumerate(featureclassquadrupel):
         
         # adapt samples to draw from last case to draw a total of nsamples
-        if len(featureclasstriples) == cid:
+        if len(featureclassquadrupel) - 1 == cid:
             nsamplescase += nsamples % ncases
         
         # load the class memberships
         classes = numpy.load(classfile, mmap_mode='r') 
         
         # determine number of fg and bg samples to draw for this case
-        nbgsamples = int(classes.size / float(numpy.count_nonzero(~classes)) * nsamplescase)
-        nfgsamples = int(classes.size / float(numpy.count_nonzero(classes)) * nsamplescase)
+        nbgsamples = int(float(numpy.count_nonzero(~classes)) / classes.size * nsamplescase)
+        nfgsamples = int(float(numpy.count_nonzero(classes)) / classes.size * nsamplescase)
         nfgsamples += nsamplescase - (nfgsamples + nbgsamples) # +/- a little
         logger.debug('iteration {}: drawing {} fg and {} bg samples'.format(cid, nfgsamples, nbgsamples))
         
@@ -283,9 +306,11 @@ def stratifiedrandomsampling(featureclasstriples, trainingsetfile, classfile, br
         # create and save sample point file
         mask, maskh = load(brainmaskfile)
         mask = mask.astype(numpy.bool)
-        featurepointimage = numpy.zeros_like(mask, numpy.bool)
-        featurepointimage[mask][fg_sample_selection] = 1
-        featurepointimage[mask][bg_sample_selection] = 2
+        featurepointimage = numpy.zeros_like(mask, numpy.uint8)
+        featurepointimage = __setimagepointstwofilter(featurepointimage, mask, fg_sample_selection, SAMPLEPOINT_FG_VALUE)
+        featurepointimage = __setimagepointstwofilter(featurepointimage, mask, bg_sample_selection, SAMPLEPOINT_BG_VALUE)
+        #featurepointimage[mask][fg_sample_selection] = SAMPLEPOINT_FG_VALUE
+        #featurepointimage[mask][bg_sample_selection] = SAMPLEPOINT_BG_VALUE
         save(featurepointimage, featurepointfile, maskh)
 
     # join and append feature vectors of all cases
@@ -302,9 +327,18 @@ def stratifiedrandomsampling(featureclasstriples, trainingsetfile, classfile, br
     # save all
     with open(trainingsetfile, 'wb') as f:
         numpy.save(f, samples_feature_vector)
-    with open(classfile, 'wb') as f:
+    with open(classsetfile, 'wb') as f:
         numpy.save(f, samples_class_memberships)
 
+def __setimagepointstwofilter(image, filter1, filter2, value):
+    """Set image points in ``image`` to ``value`` using two filters."""
+    __tmp = image[filter1]
+    __tmp[filter2] = value
+    image[filter1] = __tmp
+    return image
+
+SAMPLERS = {'stratifiedrandomsampling': stratifiedrandomsampling}
+"""The sampling methods available."""
 
 FEATURE_CONFIG = [
     (intensities, [], False),

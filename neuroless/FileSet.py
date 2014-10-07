@@ -99,11 +99,14 @@ class FileSet (object):
         if 'cases' == filesource:
             if not len(filenames) == len(cases):
                 raise ValueError('With "filesource" set to "cases", the number of "filenames" must equal the number of "cases".')
-            self.filenames = dict(zip(cases, filenames)) 
+            self.filenamemapping = dict(zip(cases, filenames))
         else:
             if not len(filenames) == len(identifiers):
                 raise ValueError('With "filesource" set to "identifiers", the number of "filenames" must equal the number of "identifiers".')
-            self.filenames = dict(zip(identifiers, filenames))             
+            self.filenamemapping = dict(zip(identifiers, filenames))             
+        
+        # set filenames in sorted order by their identifier
+        self.filenames = [fn for (_, fn) in sorted(self.filenamemapping.items())]
         
         # set instance variables
         self.directory = directory
@@ -136,7 +139,7 @@ class FileSet (object):
         fileset : FileSet
             Example file set from which to copy the structure.
         """
-        return FileSet(directory, fileset.cases, fileset.identifiers, fileset.filenames.values(), fileset.filesource, fileset.subdirectories)
+        return FileSet(directory, fileset.cases, fileset.identifiers, fileset.filenames, fileset.filesource, fileset.subdirectories)
         
     @staticmethod
     def fromdirectory(directory, sequence, filesource='identifiers'):
@@ -317,9 +320,9 @@ class FileSet (object):
         without knowing the actual type of the FileSet instance.
         """
         if 'cases' == self.filesource:
-            return self.filenames[case]
+            return self.filenamemapping[case]
         else:
-            return self.filenames[identifier]
+            return self.filenamemapping[identifier]
         
         
         
