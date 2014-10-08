@@ -56,7 +56,7 @@ def applyforest(directory, forest, featureset, brainmasks):
         A FileSet centered on ``directory`` and containing the segmentation probabilities.
     """
     # prepare the task machine
-    tm = TaskMachine()
+    tm = TaskMachine(multiprocessing=True)
     
     # prepare output
     segmentationset = FileSet(directory, featureset.cases, None, ['{}_segmentation.nii.gz'.format(c) for c in featureset.cases], 'cases', False)

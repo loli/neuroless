@@ -30,7 +30,7 @@ from medpy.utilities.argparseu import existingDirectory, sequenceOfStrings
 
 # own modules
 from neuroless import FileSet, TrainedForest
-from neuroless.actions import unify, stripskull, correctbiasfields, percentilemodelapplication, extractfeatures, applyforest
+from neuroless.actions import unify, stripskull, correctbiasfields, percentilemodelapplication, extractfeatures, applyforest, resamplebyexample, postprocess
 
 # information
 __author__ = "Oskar Maier"
@@ -67,6 +67,8 @@ def main():
     # load cases
     casedb = FileSet.fromdirectory(args.cases, args.sequences, filesource='identifiers')
     
+    print 'Deducted sequence to file mapping:', casedb.filenamemapping
+    
     # select suitable forests
     _, forestdirs, _ = os.walk(args.forestbasedir).next()
     suitable_forests = []
@@ -82,20 +84,26 @@ def main():
     forestinstance = suitable_forests[0]
     
     # pipeline: apply pre-processing steps to the cases
+    print '00: Unifying MRI sequences...'
     unified = unify(os.path.join(args.workingdir, '00unification'), casedb, fixedsequence=forestinstance.fixedsequence, targetspacing=forestinstance.workingresolution)
-    brainmasks = stripskull(os.path.join(args.workingdir, '02skullstrip'), unified, stripsequence=forestinstance.skullstripsequence)
-    biascorrected = correctbiasfields(os.path.join(args.workingdir, '03biasfield'), unified, brainmasks)
-    standarised = percentilemodelapplication(os.path.join(args.workingdir, '04intensitystd'), biascorrected, brainmasks, forestinstance.getintensitymodels())
-    features, _, fnames = extractfeatures(os.path.join(args.workingdir, '05features'), standarised, brainmasks)
-    segmentations, probabilities = applyforest(args.targetdir, forestinstance.forest, features, brainmasks)
-    #!TODO: Post-processing step!
-    #!TODO: Cast back to original space!
+    print '01: Computing brain masks...'
+    brainmasks, _ = stripskull(os.path.join(args.workingdir, '01skullstrip'), unified, stripsequence=forestinstance.skullstripsequence)
+    print '02: Computing and applying bias-field correction...'
+    biascorrected = correctbiasfields(os.path.join(args.workingdir, '02biasfield'), unified, brainmasks)
+    print '03: Applying intensity range models...'
+    standarised = percentilemodelapplication(os.path.join(args.workingdir, '03intensitystd'), biascorrected, brainmasks, forestinstance.getintensitymodels())
+    print '04: Extracting features...'
+    features, _, fnames = extractfeatures(os.path.join(args.workingdir, '04features'), standarised, brainmasks)
+    print '05: Segmenting cases...'
+    segmentations, probabilities = applyforest(os.path.join(args.workingdir, '05segmentations'), forestinstance.forest, features, brainmasks)
+    print '06: Post-processing segmentations...'
+    postprocessed = postprocess(os.path.join(args.workingdir, '06postprocessed'), segmentations, args.objectthreshold)
+    print '07: Re-sampling segmentations, probability maps and brain masks to original space...'
+    origsegmentations = resamplebyexample(args.targetdir, postprocessed, casedb, forestinstance.fixedsequence, binary=True)
+    origprobabilities = resamplebyexample(args.targetdir, probabilities, casedb, forestinstance.fixedsequence)
+    origbrainmasks = resamplebyexample(os.path.join(args.targetdir, 'brainmasks'), brainmasks, casedb, forestinstance.fixedsequence, binary=True)
 
-    # construct and save results
-    print segmentations.getfiles()
-    print probabilities.getfiles()
-    
-    logger.info('Successfully terminated.')
+    print 'Successfully terminated.'
 
 def getArguments(parser):
     "Provides additional validation of the arguments collected by argparse."
@@ -111,6 +119,8 @@ def getParser():
     parser.add_argument('targetdir', type=existingDirectory, help='The target directory in which to place the segmented images.')
     parser.add_argument('workingdir', type=existingDirectory, help='The working directory in which to place / from which to read the intermediate results.')
     parser.add_argument('sequences', type=sequenceOfStrings, help='Colon-separated list of MRI sequence names identifying the images in the traindb.')
+    
+    parser.add_argument('--objectthreshold', type=float, default=1500., help='Remove all binary objects of a size lower than this value in ml from the final segmentation.')
     
     parser.add_argument('-v', dest='verbose', action='store_true', help='Display more information.')
     parser.add_argument('-d', dest='debug', action='store_true', help='Display debug information.')

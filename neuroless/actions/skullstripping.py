@@ -51,7 +51,9 @@ def stripskull(directory, inset, stripsequence = False):
     Returns
     -------
     resultset : FileSet
-        A FilSet centered on ``directory`` and representing the binary brain masks.    
+        A FilSet centered on ``directory`` and representing the binary brain masks.
+    stripsequence : string
+        The sequence employed for the skull-stripping.
     """
     logger = Logger.getInstance()
     
@@ -60,6 +62,7 @@ def stripskull(directory, inset, stripsequence = False):
         for sequence in SEQUENCE_PREFERENCES:
             if sequence in inset.identifiers:
                 stripsequence = sequence
+                break
         if not stripsequence:
             stripsequence = inset.identifiers[0]
             logger.warning('None of the preferred sequences for skull-stripping "{}" available. Falling back to "{}"'.format(SEQUENCE_PREFERENCES, stripsequence))
@@ -67,7 +70,7 @@ def stripskull(directory, inset, stripsequence = False):
         raise ValueError('The chosen skull-strip sequence "{}" is not available in the input image set.'.format(stripsequence))
 
     # prepare the task machine
-    tm = TaskMachine()
+    tm = TaskMachine(multiprocessing=True)
         
     # prepare output
     resultset = FileSet(directory, inset.cases, False, ['{}.{}'.format(cid, PREFERRED_FILE_SUFFIX) for cid in inset.cases], 'cases', False)
@@ -82,7 +85,7 @@ def stripskull(directory, inset, stripsequence = False):
     # run
     tm.run()        
             
-    return resultset
+    return resultset, stripsequence
         
 def brainmask(src, dest, resultfile):
     """

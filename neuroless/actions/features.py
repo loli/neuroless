@@ -67,7 +67,7 @@ def extractfeatures(directory, inset, brainmasks, groundtruth = False):
         A FileSet centered on ``directory`` and containing the feature names.
     """
     # prepare the task machine
-    tm = TaskMachine()
+    tm = TaskMachine(multiprocessing=True)
     
     # prepare output
     resultset = FileSet(directory, inset.cases, inset.identifiers, ['{}.npy'.format(fn) for fn in inset.filenames], 'identifiers', True)
@@ -123,7 +123,6 @@ def extract(imagefiles, destfiles, brainmaskfile, fndestfile, groundtruthfile = 
     cmdestfile : string
         The destination file for the class memberships.
     """
-
     # loading the support images
     msk = load(brainmaskfile)[0].astype(numpy.bool)
     if groundtruthfile: gt = load(groundtruthfile)[0].astype(numpy.bool)

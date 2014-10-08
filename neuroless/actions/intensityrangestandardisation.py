@@ -55,7 +55,7 @@ def percentilemodelapplication(directory, inset, brainmasks, models):
         images.
     """
     # prepare the task machine
-    tm = TaskMachine()
+    tm = TaskMachine(multiprocessing=True)
     
     # prepare output
     resultset = FileSet.fromfileset(directory, inset)
@@ -102,7 +102,7 @@ def percentilemodelstandardisation(directory, inset, brainmasks):
         MR sequence contained in ``inset``.
     """
     # prepare the task machine
-    tm = TaskMachine()
+    tm = TaskMachine(multiprocessing=True)
     
     # prepare output
     resultset = FileSet.fromfileset(directory, inset)

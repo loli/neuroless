@@ -31,6 +31,7 @@ import medpy.io
 from neuroless import FileSet, TaskMachine
 from neuroless.shell import tmpdir, call, scp
 from neuroless.exceptions import CommandExecutionError
+from medpy.io import header, load, save
 
 # constants (see end of file for more constants)
 
@@ -59,7 +60,7 @@ def unify(directory, inset, fixedsequence = 'flair', targetspacing = 1):
         A FileSet centered on ``directory`` and representing the processed images.
     """
     # prepare the task machine
-    tm = TaskMachine()
+    tm = TaskMachine(multiprocessing=True)
         
     # prepare output file set
     resultset = FileSet.fromfileset(directory, inset)
@@ -72,6 +73,9 @@ def unify(directory, inset, fixedsequence = 'flair', targetspacing = 1):
             tm.register([src], [dest], sresample, [src, dest, targetspacing], dict(), 're-sample')
         else: # simply copy
             tm.register([src], [dest], scp, [src, dest], dict(), 'secure-copy')
+            
+    # run
+    tm.run()            
 
     # prepare and register registration task
     for case, identifier in itertools.product(inset.cases, inset.identifiers):
@@ -86,7 +90,47 @@ def unify(directory, inset, fixedsequence = 'flair', targetspacing = 1):
     
     return resultset
 
-def resample(directory, inset, targetspacing = 1):
+def resamplebyexample(directory, inset, referenceset, referenceidentifier = False, binary = False):
+    r"""
+    Re-sample binary images to a new spacing, origin and size.
+    
+    Parameters
+    ----------
+    directory : string
+        Where to place the results.
+    inset : FileSet
+        The input file set.
+    referenceset : FileSet
+        Images displaying the target resolutions ``inset``.
+    referenceidentifier : FileSet
+        Identifier to extract the right images from referenceset.
+    binary : bool
+        Set to ``True`` for binary images.
+                
+    Returns
+    -------
+    resultset : FileSet
+        A FileSet centered on ``directory`` and representing the processed images.
+    """
+    # prepare the task machine
+    tm = TaskMachine(multiprocessing=True)
+        
+    # prepare output file set
+    resultset = FileSet.fromfileset(directory, inset)
+
+    # prepare and register re-sampling tasks
+    for case in inset.cases:
+        src = inset.getfile(case=case)
+        referencefile = referenceset.getfile(case=case, identifier=referenceidentifier)
+        dest = resultset.getfile(case=case)
+        tm.register([src, referencefile], [dest], sresamplebyexample, [src, dest, referencefile, binary], dict(), 'binary re-sample')
+
+    # run
+    tm.run()
+
+    return resultset        
+
+def resample(directory, inset, targetspacing = 1, order = 3):
     r"""
     Re-sample images to a new spacing.
     
@@ -100,14 +144,16 @@ def resample(directory, inset, targetspacing = 1):
         The target spacing for all images. If ``False``, the original spacing of the
         ``fixedsequence`` image is kept; if a single number, isotropic spacing is
         assumed; a sequence of numbers denotes custom spacing.
-        
+    order : integer
+        The order of the b-spline-re-sampling. Set to 1 for binary images.
+                        
     Returns
     -------
     resultset : FileSet
         A FileSet centered on ``directory`` and representing the processed images.
     """    
     # prepare the task machine
-    tm = TaskMachine()
+    tm = TaskMachine(multiprocessing=True)
         
     # prepare output file set
     resultset = FileSet.fromfileset(directory, inset)
@@ -117,14 +163,14 @@ def resample(directory, inset, targetspacing = 1):
         src = inset.getfile(case=case)
         dest = resultset.getfile(case=case)
         if targetspacing: # re-sample
-            tm.register([src], [dest], sresample, [src, dest, targetspacing], dict(), 're-sample')
+            tm.register([src], [dest], sresample, [src, dest, targetspacing, order], dict(), 're-sample')
         else: # simply copy
-            tm.register([src], [dest], scp, [src, dest], dict(), 'secure-copy')
+            tm.register([src], [dest], scp, [src, dest, order], dict(), 'secure-copy')
 
     # run
     tm.run()
 
-    return resultset    
+    return resultset
         
 def sresample(src, dest, spacing, order = 3):
     r"""
@@ -144,7 +190,42 @@ def sresample(src, dest, spacing, order = 3):
     """
     img, hdr = medpy.io.load(src)
     img, hdr = filter.resample(img, hdr, spacing, order)
-    medpy.io.save(img, dest, hdr)   
+    medpy.io.save(img, dest, hdr)           
+        
+def sresamplebyexample(src, dest, referenceimage, binary = False):
+    r"""
+    Secure-re-sample an image located at ``src`` by example ``referenceimage`` and
+    save it under ``dest``.
+    
+    Parameters
+    ----------
+    src : string
+        Source image file.
+    dest : string
+        Destination image file.
+    referenceimage : string
+        Reference image displaying the target spacing, origin and size.
+    binary : bool
+        Set to ``True`` for binary images.
+    """
+    # get target voxel spacing
+    refimage, refhdr = medpy.io.load(referenceimage)
+    spacing = header.get_pixel_spacing(refhdr)
+    
+    with tmpdir() as t:
+        # create a temporary copy of the reference image with the source image data-type (imiImageResample requires both images to be of the same dtype)
+        srcimage, _ = load(src)
+        save(refimage.astype(srcimage.dtype), os.path.join(t, 'ref.nii.gz'), refhdr)
+    
+        # prepare and run registration command
+        cmd = ['imiImageResample', '-I', src, '-O', dest, '-R', os.path.join(t, 'ref.nii.gz'), '-s'] + map(str, spacing)
+        if binary:
+            cmd += ['-b']
+        rtcode, stdout, stderr = call(cmd)
+    
+    # check if successful
+    if not os.path.isfile(dest):
+        raise CommandExecutionError(cmd, rtcode, stdout, stderr, 'Binary re-sampling result image not created.')
         
 def register(fixed, moving, dest):
     r"""

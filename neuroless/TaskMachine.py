@@ -28,6 +28,7 @@ from medpy.core.logger import Logger
 
 # own modules
 from .exceptions import TaskExecutionError
+from multiprocessing import Pool
 
 # constants
 
@@ -38,11 +39,13 @@ class TaskMachine (object):
     
     !TODO: Allow for parallel execution where possible.
     """
-    def __init__(self) :
+    def __init__(self, multiprocessing = False, nprocesses = None) :
         """
         """
         self.logger = Logger.getInstance()
         self.tasks = []
+        self.multiprocessing = multiprocessing
+        self.nprocesses = nprocesses
     
     def register(self, required_files, generated_files, callback_function, args, kwargs, description):
         r"""
@@ -68,44 +71,57 @@ class TaskMachine (object):
     def run(self):
         r"""
         Execute the registered tasks, then empty the task list.
+        If the ``multiprocessing`` instance variable is set, the tasks are execute in parallel.
         """
-        ntasks = len(self.tasks)
-        # for each task
-        for tid, (srcs, trgs, fun, args, kwargs, desc) in enumerate(self.tasks):
-            tid += 1
-            # check required source files
-            srcs_check = self.__check_files(srcs)
-            if not numpy.all(srcs_check):
-                raise TaskExecutionError('Task {}/{} ({}): Required source file(s) missing: "{}"'.format(tid, ntasks, desc, numpy.asarray(srcs)[~srcs_check]))
-            # check target files
-            trgs_check = self.__check_files(trgs)
-            if numpy.all(trgs_check):
-                self.logger.warning('Task {}/{} ({}): target files already existent; skipping task'.format(tid, ntasks, desc))
-                continue
-            elif numpy.any(trgs_check):
-                raise TaskExecutionError('Task {}/{} ({}): Some target file(s) already exist: "{}".'.format(tid, ntasks, desc, numpy.asarray(trgs)[trgs_check]))
-            # execute task
-            try:
-                fun(*args, **kwargs)
-            except Exception as e:
-                # remove target files (if partially created)
-                for trg in trgs:
-                    try:
-                        if os.path.isfile(trg):
-                            os.remove(trg)
-                    except Exception as e:
-                        pass 
-                raise TaskExecutionError, TaskExecutionError('Task {}/{} ({}): Execution failed. Removed partial results. Reason signaled: {}'.format(tid, ntasks, desc, e)), sys.exc_info()[2]
-            # check target files
-            trgs_check = self.__check_files(trgs)
-            if not numpy.all(srcs_check):
-                raise TaskExecutionError('Task {}/{} ({}): Execution failed to create some target files: "{}".'.format(tid, ntasks, desc, numpy.asarray(trgs)[~trgs_check]))
+        # add an id to each task as first argument
+        tasks = [[tid + 1] + task for tid, task in enumerate(self.tasks)]
+        # execute tasks (multiprocessing or sequential)
+        if self.multiprocessing:
+            pool = Pool(self.nprocesses)
+            pool.map(_runtask, tasks)
+        else:
+            for task in tasks:
+                _runtask(task)
+        # empty task list
         self.tasks = []
-
-    @staticmethod     
-    def __check_files(files):
-        r"""
-        Check all files for existence, return True if yes, otherwise False.
-        """
-        return numpy.asarray([os.path.isfile(f) for f in files])
-            
+    
+## static, module-accessible methods for parallel processing
+def _runtask((tid, srcs, trgs, fun, args, kwargs, desc)):
+    r"""
+    Execute a single task.
+    """
+    # initialize logger
+    logger = Logger.getInstance()
+    # check required source files
+    srcs_check = _check_files(srcs)
+    if not numpy.all(srcs_check):
+        raise TaskExecutionError('Task {} ({}): Required source file(s) missing: "{}"'.format(tid, desc, numpy.asarray(srcs)[~srcs_check]))
+    # check target files
+    trgs_check = _check_files(trgs)
+    if numpy.all(trgs_check):
+        logger.warning('Task {} ({}): All target files already existent; skipping task'.format(tid, desc))
+        return
+    elif numpy.any(trgs_check):
+        raise TaskExecutionError('Task {} ({}): Some target file(s) already exist: "{}".'.format(tid, desc, numpy.asarray(trgs)[trgs_check]))
+    # execute task
+    try:
+        fun(*args, **kwargs)
+    except Exception as e:
+        # remove target files (if partially created)
+        for trg in trgs:
+            try:
+                if os.path.isfile(trg):
+                    os.remove(trg)
+            except Exception as e:
+                pass 
+        raise TaskExecutionError, TaskExecutionError('Task {} ({}): Execution failed. Partial results removed. Reason signaled: {}'.format(tid, desc, e)), sys.exc_info()[2]
+    # check target files
+    trgs_check = _check_files(trgs)
+    if not numpy.all(srcs_check):
+        raise TaskExecutionError('Task {} ({}): Execution failed to create some target files: "{}".'.format(tid, desc, numpy.asarray(trgs)[~trgs_check]))        
+   
+def _check_files(files):
+    r"""
+    Check all files for existence, return True if yes, otherwise False.
+    """
+    return numpy.asarray([os.path.isfile(f) for f in files])

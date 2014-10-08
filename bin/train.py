@@ -22,7 +22,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # build-in modules
 import argparse
 import logging
-import sys
 import os
 
 # third-party modules
@@ -74,17 +73,27 @@ def main():
     # check and create an image set from the training database
     traindb = FileSet.fromdirectory(args.traindb, args.sequences, filesource='identifiers')
     
+    print 'Deducted sequence to file mapping:', traindb.filenamemapping
+        
     # check and create an image set from the ground-truth database
     gtset = FileSet.fromdirectory(args.groundtruthdir, traindb.cases, filesource='cases') 
         
     # pipeline
+    print '00: Unifying MRI sequences...'
     unified = unify(os.path.join(args.workingdir, '00unification'), traindb, fixedsequence=args.fixedsequence, targetspacing=args.workingresolution)
-    gtunified = resample(os.path.join(args.workingdir, '01gtunification'), gtset, targetspacing=args.workingresolution)
-    brainmasks = stripskull(os.path.join(args.workingdir, '02skullstrip'), unified, stripsequence=args.stripsequence)
+    print '01: Re-sampling ground-truth...'
+    gtunified = resample(os.path.join(args.workingdir, '01gtunification'), gtset, targetspacing=args.workingresolution, order=1)
+    print '02: Computing brain masks...'
+    brainmasks, stripsequence = stripskull(os.path.join(args.workingdir, '02skullstrip'), unified, stripsequence=args.stripsequence)
+    print '03: Computing and applying bias-field correction...'
     biascorrected = correctbiasfields(os.path.join(args.workingdir, '03biasfield'), unified, brainmasks)
+    print '04: Computing and applying intensity range models...'
     standarised, intstdmodels = percentilemodelstandardisation(os.path.join(args.workingdir, '04intensitystd'), biascorrected, brainmasks)
+    print '05: Extracting features...'
     features, classes, fnames = extractfeatures(os.path.join(args.workingdir, '05features'), standarised, brainmasks, gtunified)
+    print '06: Sampling training-set...'
     trainingset, samplepointset = sample(os.path.join(args.workingdir, '06samplingset'), features, classes, brainmasks, sampler=args.samplingmethod, nsamples=args.nsamples, min_no_of_samples_per_class_and_case=args.minsamplesperclassandcase)
+    print '07: Training decision forest...'
     forest = trainet(trainingset,
                      n_estimators = args.nestimators,
                      criterion = args.criterion,
@@ -94,7 +103,7 @@ def main():
                      max_depth = args.maxdepth,
                      bootstrap = args.bootstrap,
                      oob_score = args.oobscore)
-    
+    print '08: Saving forest instance...'
     # set forest instance
     forestinstance.forest = forest
     forestinstance.trainingimages = traindb
@@ -110,18 +119,18 @@ def main():
                                        'oob_score': args.oobscore}
     forestinstance.fixedsequence = args.fixedsequence
     forestinstance.workingresolution = args.workingresolution
-    forestinstance.skullstripsequence = args.stripsequence
+    forestinstance.skullstripsequence = stripsequence
     for sequence in intstdmodels.identifiers:
         model = intstdmodels.getfile(identifier=sequence)
         with open(model, 'rb') as f:
             forestinstance.setintensitystdmodel(sequence, pickle.load(f))
 
-    print forestinstance.prettyinfo()
-
     # persist forest instance
     forestinstance.persist()
+    
+    #print forestinstance.prettyinfo()
 
-    logger.info('Successfully terminated.')
+    print 'Successfully terminated.'
 
 def getArguments(parser):
     "Provides additional validation of the arguments collected by argparse."
@@ -162,7 +171,7 @@ def getParser():
     
     unification = parser.add_argument_group('unification', 'The unification step re-samples and registers all MRI sequences to a common space and sequence.')
     unification.add_argument('--workingresolution', default=1, type=sequenceOfFloatsGt, help='The spacing to which all sequences are re-sampled. Can be a single number (isotropic spacing) or a colon-separated sequence of numbers. (default: 1)')
-    unification.add_argument('--fixedsequence', default='flair', help='The MRI sequence to which to register the other sequences rigidly. Must be one of the sequences passed to the "sequences" argument. (default: flair)')
+    unification.add_argument('--fixedsequence', default='flair', help='The MRI sequence to which to register the other sequences rigidly (must be the sequence in which the ground-truth has been drawn). Must be one of the sequences passed to the "sequences" argument. (default: flair)')
     
     skullstripping = parser.add_argument_group('skullstripping', 'The skull-stripping step computes a brain-mask based on the most suitable sequence.')
     skullstripping.add_argument('--stripsequence', default=False, help='The MRI sequence on which to calculate the brain mask. If in doubt, leave it to the method to choose the best sequence available. Must be one of the sequences passed to the "sequences" argument.')

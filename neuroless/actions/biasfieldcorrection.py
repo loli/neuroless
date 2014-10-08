@@ -55,7 +55,7 @@ def correctbiasfields(directory, inset, brainmasks):
         images.
     """
     # prepare the task machine
-    tm = TaskMachine()
+    tm = TaskMachine(multiprocessing=True)
     
     # prepare output
     resultset = FileSet.fromfileset(directory, inset)
