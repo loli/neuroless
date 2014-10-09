@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-10-01
 # status Development
 
@@ -25,13 +25,12 @@ import multiprocessing
 
 # third-party modules
 from medpy import filter
-import medpy.io
+from medpy.io import header, load, save
 
 # own modules
-from neuroless import FileSet, TaskMachine
-from neuroless.shell import tmpdir, call, scp
-from neuroless.exceptions import CommandExecutionError
-from medpy.io import header, load, save
+from .. import FileSet, TaskMachine
+from ..shell import tmpdir, call, scp
+from ..exceptions import CommandExecutionError
 
 # constants (see end of file for more constants)
 
@@ -188,9 +187,9 @@ def sresample(src, dest, spacing, order = 3):
     order : integer
         The b-spline-order as used by `scipy.ndimage.zoom`.
     """
-    img, hdr = medpy.io.load(src)
+    img, hdr = load(src)
     img, hdr = filter.resample(img, hdr, spacing, order)
-    medpy.io.save(img, dest, hdr)           
+    save(img, dest, hdr)           
         
 def sresamplebyexample(src, dest, referenceimage, binary = False):
     r"""
@@ -209,7 +208,7 @@ def sresamplebyexample(src, dest, referenceimage, binary = False):
         Set to ``True`` for binary images.
     """
     # get target voxel spacing
-    refimage, refhdr = medpy.io.load(referenceimage)
+    refimage, refhdr = load(referenceimage)
     spacing = header.get_pixel_spacing(refhdr)
     
     with tmpdir() as t:

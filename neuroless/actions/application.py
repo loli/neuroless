@@ -14,19 +14,19 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-10-06
 # status Development
-from neuroless import TaskMachine, FileSet
-from medpy.features.utilities import join
-import numpy
-from medpy.io import load, save
 
 # build-in module
 
 # third-party modules
+import numpy
+from medpy.io import load, save
+from medpy.features.utilities import join
 
 # own modules
+from .. import TaskMachine, FileSet
 
 # constants
 PROBABILITY_THRESHOLD = 0.5
@@ -81,7 +81,7 @@ def applyforest(directory, forest, featureset, brainmasks):
     return segmentationset, probabilityset
 
 def __applyforest(forest, featurefiles, brainmaskfile, segmentationfile, probabilityfile):
-    """Apply a forest using the features and save the results."""
+    r"""Apply a forest using the features and save the results."""
     # memory-efficient loading of the features for this case
     features = join(*[numpy.load(featurefile, mmap_mode='r') for featurefile in featurefiles])
     if 1 == features.ndim:

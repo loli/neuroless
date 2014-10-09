@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-10-08
 # status Development
 
@@ -27,14 +27,14 @@ from medpy.io import load, header, save
 from medpy.filter.binary import size_threshold
 
 # own modules
-from neuroless import FileSet, TaskMachine
+from .. import FileSet, TaskMachine
 
 # constants
 
 # code
 def postprocess(directory, inset, threshold):
     r"""
-    Postprocess segmentation results.
+    Post-process segmentation results.
     
     Parameters
     ----------
@@ -92,6 +92,9 @@ def _postprocess(src, dest, threshold):
     save(out, dest, hdr, True)
     
 def _fill2d(arr, structure = None, dimension = 2):
+    r"""
+    Fill holes along a certain dimension only.
+    """
     res = numpy.zeros(arr.shape, numpy.bool)
     for sl in range(arr.shape[dimension]):    
         res[:,:,sl] = binary_fill_holes(arr[:,:,sl], structure)

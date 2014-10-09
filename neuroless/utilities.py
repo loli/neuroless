@@ -1,3 +1,28 @@
+"""
+======================================
+Utilities (:mod:`neuroless.utilities`)
+======================================
+.. currentmodule:: neuroless.utilities
+
+A number of small, internal utilities used by the NeuroLess package.
+
+.. module:: neuroless.utilities
+.. autosummary::
+    :toctree: generated/
+    
+    set_qform_code
+    set_sform_code
+    set_qform
+    set_sform
+    get_qform_code
+    get_sform_code
+    get_affine
+    get_qform
+    get_sform
+    get_diagonal
+    
+"""
+
 # Copyright (C) 2013 Oskar Maier
 # 
 # This program is free software: you can redistribute it and/or modify
@@ -14,15 +39,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-09-26
 # status Development
 
 # build-in module
 
 # third-party modules
-from medpy.io import header
 import numpy
+from medpy.io import header
 
 # own modules
 

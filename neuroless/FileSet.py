@@ -14,20 +14,19 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-10-01
 # status Development
 
 # build-in module
-
-# third-party modules
-from .exceptions import UnsupportedCombinationError
-from .shell import mkdircond
 import os
-from neuroless.exceptions import ConsistencyError
 import itertools
 
+# third-party modules
+
 # own modules
+from .exceptions import UnsupportedCombinationError, ConsistencyError
+from .shell import mkdircond
 
 # constants
 

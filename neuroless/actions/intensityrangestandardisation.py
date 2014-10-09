@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-10-02
 # status Development
 
@@ -27,8 +27,7 @@ from medpy.io import load, save
 import numpy
 
 # own modules
-from neuroless import TaskMachine, FileSet
-
+from .. import TaskMachine, FileSet
 
 # constants
 
@@ -69,7 +68,7 @@ def percentilemodelapplication(directory, inset, brainmasks, models):
             destfile = resultset.getfile(identifier=sequence, case=case)
             tm.register([imagefile, brainmaskfile, modelfile],
                         [destfile],
-                        percentileintensityapplication,
+                        _percentilemodelapplication,
                         [imagefile, brainmaskfile, destfile, modelfile],
                         dict(),
                         'intensity-standardisation')
@@ -117,7 +116,7 @@ def percentilemodelstandardisation(directory, inset, brainmasks):
         destmodel = models.getfile(identifier=sequence)
         tm.register(trainingfiles + brainmaskfiles,
                     [destmodel] + destfiles,
-                    percentileintensitystd,
+                    _percentilemodelstandardisation,
                     [trainingfiles, brainmaskfiles, destfiles, destmodel],
                     dict(),
                     'intensity-standardisation')
@@ -127,8 +126,8 @@ def percentilemodelstandardisation(directory, inset, brainmasks):
     
     return resultset, models
         
-def percentileintensityapplication(imagefile, brainmaskfile, destfile, modelfile):
-    """
+def _percentilemodelapplication(imagefile, brainmaskfile, destfile, modelfile):
+    r"""
     Apply an intensity range standardisation model to an image.
     
     Parameters
@@ -155,6 +154,9 @@ def percentileintensityapplication(imagefile, brainmaskfile, destfile, modelfile
     # apply model
     transformed_image = model.transform(image[mask])
     
+    # condense outliers in the image (extreme peak values at both end-points of the histogram)
+    transformed_image = _condense(transformed_image)
+    
     # modify original image
     image[~mask] = 0
     image[mask] = transformed_image
@@ -163,8 +165,8 @@ def percentileintensityapplication(imagefile, brainmaskfile, destfile, modelfile
     save(image, destfile, header)
     
         
-def percentileintensitystd(trainingfiles, brainmaskfiles, destfiles, destmodel):
-    """
+def _percentilemodelstandardisation(trainingfiles, brainmaskfiles, destfiles, destmodel):
+    r"""
     Train an intensity standardisation model and apply it. All values outside of the
     brain mask are set to zero.
     
@@ -201,7 +203,7 @@ def percentileintensitystd(trainingfiles, brainmaskfiles, destfiles, destmodel):
     trained_model, transformed_images = irs.train_transform([i[m] for i, m in zip(images, masks)])
     
     # condense outliers in the image (extreme peak values at both end-points of the histogram)
-    transformed_images = [condense(i) for i in transformed_images]
+    transformed_images = [_condense(i) for i in transformed_images]
     
     # saving the model
     with open(destmodel, 'wb') as f:
@@ -213,8 +215,8 @@ def percentileintensitystd(trainingfiles, brainmaskfiles, destfiles, destmodel):
         i[m] = ti
         save(i, dest, h)
 
-def condense(img):
-    """
+def _condense(img):
+    r"""
     Apply a percentile threshold to an image, condensing all outliers to the
     percentile values 1 and 99.9 respectively.
     

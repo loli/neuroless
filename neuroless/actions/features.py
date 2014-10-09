@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-10-02
 # status Development
 
@@ -30,8 +30,8 @@ from medpy.features.intensity import intensities, local_mean_gauss,\
     local_histogram, centerdistance_xdminus1
 
 # own modules
-from neuroless import TaskMachine, FileSet
-from neuroless.exceptions import InvalidConfigurationError
+from .. import TaskMachine, FileSet
+from ..exceptions import InvalidConfigurationError
 
 # constants (see end of file for more constants)
 FEATURE_DTYPE = numpy.float32
@@ -87,14 +87,14 @@ def extractfeatures(directory, inset, brainmasks, groundtruth = False):
             cmdestfile = classes.getfile(case=case)
             tm.register(inset.getfiles(case=case) + [brainmaskfile, groundtruthfile],
                         resultset.getfiles(case=case) + [cmdestfile, fndestfile],
-                        extract,
+                        _extract,
                         [inset.getfiles(case=case), resultset.getfiles(case=case), brainmaskfile, fndestfile, groundtruthfile, cmdestfile],
                         dict(),
                         'feature-extraction')
         else:
             tm.register(inset.getfiles(case=case) + [brainmaskfile],
                         resultset.getfiles(case=case) + [fndestfile],
-                        extract,
+                        _extract,
                         [inset.getfiles(case=case), resultset.getfiles(case=case), brainmaskfile, fndestfile],
                         dict(),
                         'feature-extraction')            
@@ -104,8 +104,8 @@ def extractfeatures(directory, inset, brainmasks, groundtruth = False):
         
     return resultset, classes, fnames
         
-def extract(imagefiles, destfiles, brainmaskfile, fndestfile, groundtruthfile = False, cmdestfile = False):
-    """
+def _extract(imagefiles, destfiles, brainmaskfile, fndestfile, groundtruthfile = False, cmdestfile = False):
+    r"""
     Extract all features from the supplied image.
     
     Parameters
@@ -228,7 +228,7 @@ def sample(directory, features, classes, brainmasks, sampler, **kwargs):
 
         
 def stratifiedrandomsampling(featureclassquadrupel, trainingsetfile, classsetfile, nsamples = 500000, min_no_of_samples_per_class_and_case = 20):
-    """
+    r"""
     Extract a training sample set from the supplied feature sets using stratified random sampling.
     
     Parameters
@@ -240,15 +240,17 @@ def stratifiedrandomsampling(featureclassquadrupel, trainingsetfile, classsetfil
         The target training set file.
     classsetfile : string
         The target class membership file.
-    brainmaskfile : string
-        The brain mask file.
     nsamples : int or False, optional
         The amount of samples to draw. If False, all are drawn.
+    min_no_of_samples_per_class_and_case : int
+        An Exception is raised, when less this amount of samples are drawn from for class of a case.
     
     Raises
     ------
     InvalidConfigurationError
         When the current configuration would require to draw more samples than present in a case or even none.
+    InvalidConfigurationError
+        When less samples than defined by ``min_no_of_samples_per_class_and_case`` are about to be drawn fro a class from a single case.
     """
     logger = Logger.getInstance()
     
@@ -306,10 +308,8 @@ def stratifiedrandomsampling(featureclassquadrupel, trainingsetfile, classsetfil
         mask, maskh = load(brainmaskfile)
         mask = mask.astype(numpy.bool)
         featurepointimage = numpy.zeros_like(mask, numpy.uint8)
-        featurepointimage = __setimagepointstwofilter(featurepointimage, mask, fg_sample_selection, SAMPLEPOINT_FG_VALUE)
-        featurepointimage = __setimagepointstwofilter(featurepointimage, mask, bg_sample_selection, SAMPLEPOINT_BG_VALUE)
-        #featurepointimage[mask][fg_sample_selection] = SAMPLEPOINT_FG_VALUE
-        #featurepointimage[mask][bg_sample_selection] = SAMPLEPOINT_BG_VALUE
+        featurepointimage = _setimagepointstwofilter(featurepointimage, mask, fg_sample_selection, SAMPLEPOINT_FG_VALUE)
+        featurepointimage = _setimagepointstwofilter(featurepointimage, mask, bg_sample_selection, SAMPLEPOINT_BG_VALUE)
         save(featurepointimage, featurepointfile, maskh)
 
     # join and append feature vectors of all cases
@@ -329,8 +329,8 @@ def stratifiedrandomsampling(featureclassquadrupel, trainingsetfile, classsetfil
     with open(classsetfile, 'wb') as f:
         numpy.save(f, samples_class_memberships)
 
-def __setimagepointstwofilter(image, filter1, filter2, value):
-    """Set image points in ``image`` to ``value`` using two filters."""
+def _setimagepointstwofilter(image, filter1, filter2, value):
+    r"""Set image points in ``image`` to ``value`` using two filters."""
     __tmp = image[filter1]
     __tmp[filter2] = value
     image[filter1] = __tmp

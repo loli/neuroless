@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-10-02
 # status Development
 
@@ -25,9 +25,9 @@ import os
 from medpy.core.logger import Logger
 
 # own modules
-from neuroless import FileSet, TaskMachine
-from neuroless.shell import call, mv
-from neuroless.exceptions import CommandExecutionError
+from .. import FileSet, TaskMachine
+from ..shell import call, mv
+from ..exceptions import CommandExecutionError
 
 # constants
 SEQUENCE_PREFERENCES = ['t1', 't2', 'flair']
@@ -88,7 +88,7 @@ def stripskull(directory, inset, stripsequence = False):
     return resultset, stripsequence
         
 def brainmask(src, dest, resultfile):
-    """
+    r"""
     Computes a brain mask.
     
     Parameters

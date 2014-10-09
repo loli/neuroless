@@ -14,16 +14,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-10-02
 # status Development
 
 # build-in module
+import multiprocessing
 
 # third-party modules
-from sklearn.ensemble.forest import ExtraTreesClassifier
 import numpy
-import multiprocessing
+from sklearn.ensemble.forest import ExtraTreesClassifier
 
 # own modules
 
@@ -66,4 +66,3 @@ def trainet(trainingset, **kwargs):
     forest.fit(training_feature_vector, training_class_vector)    
             
     return forest
-

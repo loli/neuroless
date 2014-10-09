@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-10-02
 # status Development
 
@@ -26,10 +26,10 @@ import os
 from medpy.io import save, load
 
 # own modules
-from neuroless import FileSet, TaskMachine
-from neuroless.shell import call
-from neuroless.exceptions import CommandExecutionError
-from neuroless.utilities import get_affine, set_qform, set_sform, set_qform_code,\
+from .. import FileSet, TaskMachine
+from ..shell import call
+from ..exceptions import CommandExecutionError
+from ..utilities import get_affine, set_qform, set_sform, set_qform_code,\
     set_sform_code
 
 # constants
@@ -65,15 +65,15 @@ def correctbiasfields(directory, inset, brainmasks):
         src = inset.getfile(case=case, identifier=identifier)
         dest = resultset.getfile(case=case, identifier=identifier)
         brainmaskfile = brainmasks.getfile(case=case)
-        tm.register([src, brainmaskfile], [dest], correctbiasfield, [src, dest, brainmaskfile], dict(), 'bias-field')
+        tm.register([src, brainmaskfile], [dest], _correctbiasfield, [src, dest, brainmaskfile], dict(), 'bias-field')
                 
     # run
     tm.run()
                 
     return resultset
         
-def correctbiasfield(src, dest, bmask):
-    """
+def _correctbiasfield(src, dest, bmask):
+    r"""
     Correct the bias field of an image.
     
     Parameters
@@ -94,10 +94,10 @@ def correctbiasfield(src, dest, bmask):
     if not os.path.isfile(dest):
         raise CommandExecutionError(cmd, rtcode, stdout, stderr, 'Bias-corrected image not created.')
     
-    correctniftiheader(dest)
+    _correctniftiheader(dest)
     
-def correctniftiheader(image):
-    """
+def _correctniftiheader(image):
+    r"""
     Correct the NIfTI header meta-data of a file in-place.
     This is usually required after an application of CMTK, as this screwes up the header.
     """

@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-09-29
 # status Development
 
@@ -25,15 +25,15 @@ import pickle
 # third-party modules
 
 # own modules
-from neuroless.exceptions import ConsistencyError
-from neuroless.shell import mkdircond
-from neuroless import FileSet
+from .exceptions import ConsistencyError
+from .shell import mkdircond
+from . import FileSet
 
 # constants
 
 # code
 class TrainedForest (object):
-    """
+    r"""
     Management object for storing and retrieving a trained decision forest and additional components.
     """
     
@@ -42,7 +42,7 @@ class TrainedForest (object):
     FILENAME_INTSTDMODEL_BASESTRING = 'intstdmodel_{}.pkl'
     
     def __init__(self, directory, sequences, disable_check_empty = False):
-        """
+        r"""
         Create a new instance, ready to be filled with all necessary values at ``dir``.
         
         Parameters
@@ -67,7 +67,7 @@ class TrainedForest (object):
         
     @staticmethod
     def fromdirectory(directory):
-        """
+        r"""
         Create an instance from a trained forest instance stored in ``directory``.
         
         Parameters
@@ -100,7 +100,7 @@ class TrainedForest (object):
 
     @property
     def forest(self):
-        """
+        r"""
         The decision forest object.
         """
         with open(self.__forestfile, 'rb') as f:
@@ -115,21 +115,21 @@ class TrainedForest (object):
         
     @property
     def sequences(self):
-        """
+        r"""
         The sequences supported by the forest.
         """
         return self.__sequences
         
     @property
     def directory(self):
-        """
+        r"""
         The directory this forest is based in.
         """
         return self.__directory
         
     @property
     def trainingimages(self):
-        """
+        r"""
         The images used to train this trained forest instance (optional).
         """
         return self.__trainingimages
@@ -143,7 +143,7 @@ class TrainedForest (object):
         self.__trainingimages = list(i.getfiles())
         
     def validate(self):
-        """
+        r"""
         Check if all information required to persist a trained forest instance are present.
         """
         # required are
@@ -167,7 +167,7 @@ class TrainedForest (object):
                 raise ConsistencyError('Model file for sequence "" missing ("{}" does not exist.'.format(sequence, mfname))
         
     def persist(self):
-        """
+        r"""
         Persist the trained forest instance.
         """
         # call validate
@@ -176,8 +176,14 @@ class TrainedForest (object):
         self.__persist_config()
         
     def prettyinfo(self):
-        """
-        Returns a pretty-formatted string containing all the characteristics of the trained forest instance.
+        r"""
+        Pretty-print string of the forest.
+        
+        Returns
+        -------
+        prettyinfo : string
+            A pretty-formatted string containing all the characteristics of the trained
+            forest instance.
         """
         self.validate()
         
@@ -228,7 +234,7 @@ class TrainedForest (object):
         return FileSet(self.directory, False, self.sequences, [os.path.basename(self.__getintensitystdmodelfile(s)) for s in self.sequences], 'identifiers', False)
         
     def getintensitystdmodel(self, sequence):
-        """
+        r"""
         Get the intensity standardisation model for the ``sequence``.
         
         Parameters
@@ -249,7 +255,7 @@ class TrainedForest (object):
             return pickle.load(f)
         
     def setintensitystdmodel(self, sequence, model):
-        """
+        r"""
         Set the intensity standardisation model for the ``sequence``.
         
         Parameters
@@ -271,7 +277,7 @@ class TrainedForest (object):
             pickle.dump(model, f)
             
     def __getintensitystdmodelfile(self, sequence):
-        """
+        r"""
         Returns the model file associated with a sequence.
         """
         if not sequence in self.sequences:
@@ -279,7 +285,7 @@ class TrainedForest (object):
         return os.path.join(self.directory, TrainedForest.FILENAME_INTSTDMODEL_BASESTRING.format(sequence))            
 
     def __persist_config(self):
-        """
+        r"""
         Persist the configuration into a file.
         """
         if os.path.exists(self.__configfile):
@@ -297,7 +303,7 @@ class TrainedForest (object):
             
     @staticmethod
     def __parse_config(cnffile):
-        """
+        r"""
         Parse a configuration file and return the configuration.
         """
         if not os.path.exists(cnffile):

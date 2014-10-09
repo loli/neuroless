@@ -14,13 +14,14 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-10-01
 # status Development
 
 # build-in module
 import os
 import sys
+from multiprocessing import Pool
 
 # third-party modules
 import numpy
@@ -28,19 +29,24 @@ from medpy.core.logger import Logger
 
 # own modules
 from .exceptions import TaskExecutionError
-from multiprocessing import Pool
 
 # constants
 
 # code
 class TaskMachine (object):
     r"""
-    A class to which tasks can be registered and then executed.
-    
-    !TODO: Allow for parallel execution where possible.
+    A class to which tasks can be registered and then executed, either sequential or in parallel.
     """
     def __init__(self, multiprocessing = False, nprocesses = None) :
-        """
+        r"""
+        A class to which tasks can be registered and then executed, either sequential or in parallel.
+        
+        Parameters
+        ----------
+        multiprocessing : bool
+            Enable/disable multiprocessing.
+        nprocesses : int or None
+            The number of processes to spawn. If ``None``, the number corresponds to the processor count.
         """
         self.logger = Logger.getInstance()
         self.tasks = []
@@ -54,7 +60,7 @@ class TaskMachine (object):
         Parameters
         ----------
         required_files : sequence of strings
-            List of files that must be present for the task to succeed.
+            List of files that must be present for the task to be executed.
         generated_files : sequence of strings
             List of files that must be present after the execution of the task to consider it successful.
         callback_function : function

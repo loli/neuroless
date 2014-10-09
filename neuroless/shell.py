@@ -1,3 +1,27 @@
+"""
+==================================================
+Shell execution functions (:mod:`neuroless.shell`)
+==================================================
+.. currentmodule:: neuroless.shell
+
+This package contains various function to use shell-commands in a secure manner.
+
+.. module:: neuroless.shell
+.. autosummary::
+    :toctree: generated/
+    
+    tmpdir
+    call
+    cp
+    scp
+    mv
+    smv
+    mkdircond
+    emptydircond
+    rmdircond
+    
+"""
+
 # Copyright (C) 2013 Oskar Maier
 # 
 # This program is free software: you can redistribute it and/or modify
@@ -14,7 +38,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # author Oskar Maier
-# version d0.1
+# version r0.1
 # since 2014-09-25
 # status Development
 
@@ -58,7 +82,7 @@ docfiller = doccer.filldoc(docdict)
 
 # code
 def call(args):
-    """
+    r"""
     Executes the command contained in ``args``.
 
     Parameters
@@ -75,6 +99,12 @@ def call(args):
         The stdout buffer.
     stderr : string
         The stderr buffer.
+        
+    Examples
+    --------
+    >>> call(['mv' '-v' 'src.txt' 'trg.txt'])
+    
+    Will result in the execution of ``mv -v src.txt trg.txt``.
     """
     p = Popen(args, stdout=PIPE, stderr=PIPE)
     stdout, stderr = p.communicate()
@@ -82,7 +112,7 @@ def call(args):
     return rtcode, stdout, stderr
 
 def cp(src, dest):
-    """
+    r"""
     Copy a file from ``src`` to ``dest``, overriding ``dest`` if it already exist.
     
     Parameters
@@ -94,6 +124,10 @@ def cp(src, dest):
     ------        
     %(soe_exc)s
     %(cee_exc)s
+    
+    See Also
+    --------
+    scp : non-overriding copy
     """
     if not os.path.isfile(src):
         raise FileSystemOperationError('The source file "{}" does not exist.'.format(src))
@@ -103,7 +137,7 @@ def cp(src, dest):
         raise CommandExecutionError(cmd, rtcode, stdout, stderr, 'Destination file not created.')
 
 def scp(src, dest):
-    """
+    r"""
     Secure-copy a file from ``src`` to ``dest``, only if ``dest`` does not already exist.
     
     Parameters
@@ -115,13 +149,17 @@ def scp(src, dest):
     ------        
     %(soe_exc)s
     %(cee_exc)s
+    
+    See Also
+    --------
+    cp : overriding copy    
     """
     if os.path.exists(dest):
         raise FileSystemOperationError('The destination "{}" already exists.'.format(dest))
     cp(src, dest)
 
 def mv(src, dest):
-    """
+    r"""
     Move a file from ``src`` to ``dest``, overriding ``dest`` if it already exist.
     
     Parameters
@@ -132,7 +170,11 @@ def mv(src, dest):
     Raises
     ------        
     %(soe_exc)s
-    %(cee_exc)s    
+    %(cee_exc)s
+    
+    See Also
+    --------
+    smv : non-overriding move        
     """
     if not os.path.isfile(src):
         raise FileSystemOperationError('The source file "{}" does not exist.'.format(src))
@@ -142,7 +184,7 @@ def mv(src, dest):
         raise CommandExecutionError(cmd, rtcode, stdout, stderr, 'Destination file not created.')    
         
 def smv(src, dest):
-    """
+    r"""
     Secure-move a file from ``src`` to ``dest``, only if ``dest`` does not already exist.
     
     Parameters
@@ -154,13 +196,17 @@ def smv(src, dest):
     ------        
     %(soe_exc)s
     %(cee_exc)s
+    
+    See Also
+    --------
+    smv : overriding move
     """
     if os.path.exists(dest):
         raise FileSystemOperationError('The destination "{}" already exists.'.format(dest))
     mv(src, dest)       
 
 def mkdircond(directory):
-    """
+    r"""
     Create a directory. If already existent, silently skip.
     
     Parameters
@@ -177,7 +223,7 @@ def mkdircond(directory):
         os.mkdir(directory)
 
 def emptydircond(directory):
-    """
+    r"""
     Remove all files in ``directory``.
     
     Parameters
@@ -195,7 +241,7 @@ def emptydircond(directory):
         os.remove(os.path.join(directory, _file))
 
 def rmdircond(directory):
-    """
+    r"""
     Remove an empty directory. If not existent, silently skip.
     
     Parameters
@@ -213,7 +259,7 @@ def rmdircond(directory):
 
 @contextmanager
 def tmpdir():
-    """
+    r"""
     Creates an (empty) temporary directory available and takes care of the clean-up
     afterwards.
     
