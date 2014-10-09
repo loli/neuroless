@@ -1,0 +1,19 @@
+=======
+FileSet
+=======
+
+.. currentmodule:: neuroless
+
+.. autoclass:: FileSet
+
+
+    .. rubric:: Methods
+
+   .. autosummary::
+      :toctree: generated/   
+   
+      ~Fileset.__init__
+      ~Fileset.fromfileset
+      ~Fileset.fromdirectory
+      ~Fileset.getfiles
+      ~Fileset.getfile
